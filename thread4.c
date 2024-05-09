@@ -1,8 +1,8 @@
-#include<stdio.h>
-#include<stdlib.h>
-#include<pthread.h>
-#include<time.h>
-#include<unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <time.h>
+#include <unistd.h>
 
 #define MAX_BUF 100
 
@@ -18,7 +18,7 @@ pthread_cond_t cond_empty = PTHREAD_COND_INITIALIZER;
 pthread_cond_t cond_full = PTHREAD_COND_INITIALIZER;
 
 MPMCQueue *MPMCQueueInit(int capacity);
-void MPMCQueuePush(MPMCQueue *queue, void *s);
+void MPMCQueuePush(MPMCQueue *queue, int s);
 void *MPMCQueuePop(MPMCQueue *queue);
 void MPMCQueueDestory(MPMCQueue *);
 void *producter1(void *arg);
@@ -51,7 +51,7 @@ int main()
     pthread_mutex_destroy(&mutex);
     pthread_cond_destroy(&cond_empty);
     pthread_cond_destroy(&cond_full);
-    SPSCQueueDestory(queue);
+    MPMCQueueDestory(queue);
 }
 MPMCQueue *MPMCQueueInit(int capacity)
 {
@@ -62,7 +62,7 @@ MPMCQueue *MPMCQueueInit(int capacity)
     queue->rear=0;
     return queue;
 }
-void MPMCQueuePush(MPMCQueue *queue, void *s)
+void MPMCQueuePush(MPMCQueue *queue, int s)
 {
     queue->value[queue->rear]=s;
     queue->rear=(queue->rear+1)%MAX_BUF;
@@ -85,7 +85,7 @@ void *producter1(void *arg)
         {
             pthread_cond_wait(&cond_full,&mutex); 
         }
-        SPSCQueuePush((MPMCQueue *)arg,rand()%10);
+        MPMCQueuePush((MPMCQueue *)arg,rand()%10);
         ((MPMCQueue *)arg)->buf_count++;
         printf("product:%d\n",((MPMCQueue *)arg)->value[((MPMCQueue *)arg)->rear-1]);
         pthread_mutex_unlock(&mutex); // 解锁
@@ -102,7 +102,7 @@ void *producter2(void *arg)
         {
             pthread_cond_wait(&cond_full,&mutex); 
         }
-        SPSCQueuePush((MPMCQueue *)arg,rand()%10);
+        MPMCQueuePush((MPMCQueue *)arg,rand()%10);
         ((MPMCQueue *)arg)->buf_count++;
         printf("product:%d\n",((MPMCQueue *)arg)->value[((MPMCQueue *)arg)->rear-1]);
         pthread_mutex_unlock(&mutex); // 解锁
@@ -119,7 +119,7 @@ void *producter3(void *arg)
         {
             pthread_cond_wait(&cond_full,&mutex); 
         }
-        SPSCQueuePush((MPMCQueue *)arg,rand()%10);
+        MPMCQueuePush((MPMCQueue *)arg,rand()%10);
         ((MPMCQueue *)arg)->buf_count++;
         printf("product:%d\n",((MPMCQueue *)arg)->value[((MPMCQueue *)arg)->rear-1]);
         pthread_mutex_unlock(&mutex); // 解锁
@@ -137,7 +137,7 @@ void *consumer1(void *arg)
             pthread_cond_wait(&cond_empty,&mutex); 
         }
         printf("consume:%d\n",((MPMCQueue *)arg)->value[((MPMCQueue *)arg)->front]);
-        SPSCQueuePop((MPMCQueue *)arg);
+        MPMCQueuePop((MPMCQueue *)arg);
         ((MPMCQueue *)arg)->buf_count--;
         pthread_mutex_unlock(&mutex); // 解锁
         pthread_cond_signal(&cond_full);
@@ -154,7 +154,7 @@ void *consumer2(void *arg)
             pthread_cond_wait(&cond_empty,&mutex); 
         }
         printf("consume:%d\n",((MPMCQueue *)arg)->value[((MPMCQueue *)arg)->front]);
-        SPSCQueuePop((MPMCQueue *)arg);
+        MPMCQueuePop((MPMCQueue *)arg);
         ((MPMCQueue *)arg)->buf_count--;
         pthread_mutex_unlock(&mutex); // 解锁
         pthread_cond_signal(&cond_full);
@@ -171,7 +171,7 @@ void *consumer3(void *arg)
             pthread_cond_wait(&cond_empty,&mutex); 
         }
         printf("consume:%d\n",((MPMCQueue *)arg)->value[((MPMCQueue *)arg)->front]);
-        SPSCQueuePop((MPMCQueue *)arg);
+        MPMCQueuePop((MPMCQueue *)arg);
         ((MPMCQueue *)arg)->buf_count--;
         pthread_mutex_unlock(&mutex); // 解锁
         pthread_cond_signal(&cond_full);
