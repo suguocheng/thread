@@ -17,10 +17,11 @@ struct SearchConfig {
 
 std::mutex mtx;
 
-void searchFiles(SearchConfig *searchconfig);
+void searchFiles(SearchConfig& searchconfig,std::vector<std::string>& result);
 int main()
 {
     SearchConfig searchconfig;
+    std::vector<std::string> result;
     char buf[100];
     getcwd(buf,sizeof(buf));
     searchconfig.root_path=buf;
@@ -31,27 +32,33 @@ int main()
     // std::cout << "是否跳过隐藏文件和目录(是则输入1,否则输入0)：" << std::endl;
     // std::cin >> searchconfig.skip_hidden;
     // std::cout << "请输入要跳过的目录或文件的路径(没有则回车)：" << std::endl;
-    // std::cin 
-    std::thread thread1(searchFiles,&searchconfig);
-    std::thread thread2(searchFiles,&searchconfig);
+    //  
+    std::vector<std::thread> threads;
+    for(unsigned int i=0;i<searchconfig.max_concurrency;i++)
+    {
+        threads.emplace_back(searchFiles,std::ref(searchconfig),std::ref(result));
+    }
+    
+    for(auto& thread : threads)
+    {
+        thread.join();
+    }
 
-    thread1.join();
-    thread2.join();
 }
-void searchFiles(SearchConfig *searchconfig)
+void searchFiles(SearchConfig& searchconfig,std::vector<std::string>& result)
 {
-    std::filesystem::path directory_path=searchconfig->root_path;
+    std::filesystem::path directory_path=searchconfig.root_path;
     for(const auto& entry : std::filesystem::directory_iterator(directory_path))
     {
         // mtx.lock();
-        if (std::filesystem::is_regular_file(entry)&&entry.path().extension()==searchconfig->file_type)
+        if(std::filesystem::is_regular_file(entry)&&entry.path().extension()==searchconfig.file_type)
         {
             std::cout << entry.path() << std::endl;
         }
-        else if (std::filesystem::is_directory(entry))
+        else if(std::filesystem::is_directory(entry))
         {
-            searchconfig->root_path=entry.path();
-            searchFiles(searchconfig); // 递归搜索子目录
+            searchconfig.root_path=entry.path();
+            searchFiles(searchconfig,result); // 递归搜索子目录
         }
         // mtx.unlock();
     }
