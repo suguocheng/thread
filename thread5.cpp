@@ -16,50 +16,79 @@ struct SearchConfig {
 } typedef SearchConfig;
 
 std::mutex mtx;
+std::vector<std::string> result;
 
-void searchFiles(SearchConfig& searchconfig,std::vector<std::string>& result);
+void searchFiles(SearchConfig& searchconfig,std::vector<std::filesystem::path>& directories);
 int main()
 {
     SearchConfig searchconfig;
-    std::vector<std::string> result;
-    char buf[100];
-    getcwd(buf,sizeof(buf));
-    searchconfig.root_path=buf;
-    searchconfig.max_concurrency=std::thread::hardware_concurrency();;
+
+    //获取当前路径
+    searchconfig.root_path=std::filesystem::current_path();
+
+    //获取当前系统最大线程数
+    searchconfig.max_concurrency=std::thread::hardware_concurrency();
+
+    //最大搜索深度
     searchconfig.max_depth=3;
+
+    //要搜索的文件类型
     std::cout << "请输入想要搜索的文件类型：" << std::endl;
     std::cin >> searchconfig.file_type;
+
     // std::cout << "是否跳过隐藏文件和目录(是则输入1,否则输入0)：" << std::endl;
     // std::cin >> searchconfig.skip_hidden;
     // std::cout << "请输入要跳过的目录或文件的路径(没有则回车)：" << std::endl;
     //  
-    std::vector<std::thread> threads;
-    for(unsigned int i=0;i<searchconfig.max_concurrency;i++)
+
+    //获取的当前路径的目录
+    std::vector<std::filesystem::path> directories={searchconfig.root_path};
+    for(const auto& entry:std::filesystem::directory_iterator(searchconfig.root_path))
     {
-        threads.emplace_back(searchFiles,std::ref(searchconfig),std::ref(result));
+        if(entry.is_directory())
+        {
+            directories.push_back(entry.path());
+        }
+    }
+
+    //将目录分配到各线程中
+    std::vector<std::vector<std::filesystem::path>> thread_directories(searchconfig.max_concurrency);
+    for (size_t i=0;i<directories.size();i++)
+    {
+        thread_directories[i%searchconfig.max_concurrency].push_back(directories[i]);
+    }
+
+    //创建线程
+    std::vector<std::thread> threads;
+    for(int i=0;i<searchconfig.max_concurrency;i++)
+    {
+        threads.emplace_back(searchFiles,std::ref(searchconfig),std::ref(thread_directories[i]));
     }
     
-    for(auto& thread : threads)
+    //等待线程结束
+    for(auto& thread:threads)
     {
         thread.join();
     }
 
-}
-void searchFiles(SearchConfig& searchconfig,std::vector<std::string>& result)
-{
-    std::filesystem::path directory_path=searchconfig.root_path;
-    for(const auto& entry : std::filesystem::directory_iterator(directory_path))
+    //打印结果
+    for(const auto& file:result)
     {
-        // mtx.lock();
-        if(std::filesystem::is_regular_file(entry)&&entry.path().extension()==searchconfig.file_type)
+        std::cout << file << std::endl;
+    }
+
+}
+void searchFiles(SearchConfig& searchconfig,std::vector<std::filesystem::path>& directories)
+{
+    for(const auto& dir:directories)
+    {
+        for(const auto& entry:std::filesystem::recursive_directory_iterator(dir))
         {
-            std::cout << entry.path() << std::endl;
+            if(entry.is_regular_file()&&entry.path().extension()==searchconfig.file_type)
+            {
+                std::lock_guard<std::mutex> lock(mtx);
+                result.push_back(entry.path().string());
+            }
         }
-        else if(std::filesystem::is_directory(entry))
-        {
-            searchconfig.root_path=entry.path();
-            searchFiles(searchconfig,result); // 递归搜索子目录
-        }
-        // mtx.unlock();
     }
 }
