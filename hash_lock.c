@@ -73,7 +73,7 @@ int setKey(hash_lock_t* bucket, int key, int new_key) {
 
             pthread_mutex_lock(&bucket->table[n2].mutex); // 加锁
             p->key=new_key;
-            p->next=bucket->table[n2].head->next;
+            p->next=bucket->table[n2].head;
             bucket->table[n2].head=p;
             pthread_mutex_unlock(&bucket->table[n2].mutex); // 解锁
             
